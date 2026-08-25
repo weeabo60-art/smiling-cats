@@ -258,7 +258,7 @@ async function loadTracker() {
 
 /* ---------------- step 3: camera ---------------- */
 async function startCamera() {
-  showMsg('Loading face magic… (step 3/3)', 'Starting your camera… allow access when asked 😉', { spin: true });
+  showMsg('Loading face magic… (step 3/3)', 'Starting your camera… allow access when asked!', { spin: true });
   const stream = await navigator.mediaDevices.getUserMedia({
     video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
     audio: false,
@@ -271,7 +271,7 @@ async function startCamera() {
 function start() {
   booted = true;
   HUD.classList.remove('hidden');
-  HINT.innerHTML = '😸 Smile big — the more you smile, the faster the glowing &lt;3 falls!';
+  HINT.innerHTML = ' Smile big — the more you smile, the faster the glowing &lt;3 falls!';
   HINT.classList.remove('hidden');
   $('camDot').classList.add(demoMode ? 'warn' : 'on');
   lastTs = performance.now();
@@ -552,10 +552,10 @@ async function main() {
       offerDemo((err?.message || 'Camera could not be started.') + ' You can still play in demo mode.');
     } else {
       // tracking itself failed to load
-      showMsg('😿 Face tracking failed to load',
+      showMsg(';( Face tracking failed to load',
         'The local tracker files (in <b>vendor/</b>) could not be loaded. If you opened this by double-clicking the file, browsers block local scripts — use the <b>live preview link</b> instead, or serve the folder over <b>localhost</b>.',
         { error: true, detail: err?.message || err });
-      addBtn('🔁 Retry', main);
+      addBtn('Retry', main);
     }
   }
 }
@@ -567,18 +567,18 @@ function landmarkerOrNetsLoaded() {
 /* Watchdog: never spin forever again */
 setTimeout(() => {
   if (!booted) {
-    showMsg('⏳ Still working…',
+    showMsg('Still working…',
       'Loading is taking longer than usual. Your browser may be blocking local files or the network is slow. If this page was opened by double-clicking the file, use the <b>live preview link</b> (or serve it on localhost) and try again.',
       { spin: true });
-    addBtn('🔁 Retry', main);
+    addBtn('Retry', main);
   }
 }, 45000);
 
 if (window.__faceapiLoadFailed || typeof faceapi === 'undefined') {
-  showMsg('😿 Couldn’t load the face-tracking library',
+  showMsg('Couldn’t load the face-tracking library',
     'The local library file <b>vendor/face-api.min.js</b> could not be loaded. This happens if you opened the HTML file directly (double-click) — browsers block it there. Please use the <b>live preview link</b>, or serve this folder (e.g. <b>python3 -m http.server</b>) and open the localhost address.',
     { error: true });
-  addBtn('🔁 Retry', () => location.reload());
+  addBtn('Retry', () => location.reload());
 } else {
   main();
 }
