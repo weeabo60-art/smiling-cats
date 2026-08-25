@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Purrrfect Party — Cat Ears + &lt;3 Heart Rain</title>
+<style>
+  :root {
+    --panel: rgba(20, 12, 34, 0.72);
+    --border: rgba(255, 150, 200, 0.25);
+    --text: #ffe9f4;
+    --pink: #ff6fa5;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: radial-gradient(1200px 800px at 20% 0%, #2a1245 0%, #14082b 45%, #0a0416 100%);
+    font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    color: var(--text);
+    overflow: hidden;
+  }
+  #stage { position: fixed; inset: 0; }
+  #video, #fx {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: contain;
+  }
+  #video { transform: scaleX(-1); } /* selfie mirror */
+  #demoFace {
+    position: absolute; inset: 0; z-index: 1;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 120px;
+    animation: bob 2.2s ease-in-out infinite;
+  }
+  @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
+
+  /* ---------- HUD ---------- */
+  #hud {
+    position: fixed; top: 14px; left: 14px; right: 14px;
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    pointer-events: none; z-index: 5;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 10px 14px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+  #title { font-size: 15px; font-weight: 700; letter-spacing: 0.3px; }
+  #title small { display: block; font-weight: 400; font-size: 11px; opacity: 0.75; margin-top: 2px; }
+  .chip { font-size: 12px; padding: 8px 12px; display: inline-flex; gap: 7px; align-items: center; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #666; }
+  .dot.on { background: #51e08c; box-shadow: 0 0 8px #51e08c; }
+  .dot.warn { background: #ffd166; box-shadow: 0 0 8px #ffd166; }
+  #meterWrap { min-width: 220px; }
+  #meterLabel { font-size: 11px; opacity: 0.85; margin-bottom: 6px; display: flex; justify-content: space-between; }
+  #meter { height: 10px; border-radius: 999px; background: rgba(255,255,255,0.12); overflow: hidden; }
+  #meterFill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #7c4dff, #ff5ce1, #ffd166);
+    border-radius: 999px;
+    transition: width 80ms linear;
+    box-shadow: 0 0 12px rgba(255,92,225,0.8);
+  }
+  #rainBadge { display: none; font-weight: 800; font-size: 13px; color: #fff; animation: pulse 0.8s ease-in-out infinite alternate; }
+  @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.07); } }
+  button {
+    pointer-events: auto;
+    font: inherit; font-size: 12.5px; font-weight: 700;
+    color: #241033;
+    background: linear-gradient(135deg, #ffd166, #ff8fb8);
+    border: none; border-radius: 999px;
+    padding: 9px 14px;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(255,143,184,0.35);
+  }
+  button:hover { filter: brightness(1.08); }
+
+  /* ---------- Center messages ---------- */
+  #message {
+    position: fixed; inset: 0; z-index: 10;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 16px; text-align: center; padding: 24px;
+    background: rgba(8,4,18,0.86);
+    backdrop-filter: blur(6px);
+  }
+  #message h1 { font-size: clamp(22px, 4vw, 34px); }
+  #message p { max-width: 560px; line-height: 1.55; opacity: 0.85; font-size: 14.5px; }
+  #msgDetail {
+    max-width: 560px; font-size: 12px; opacity: 0.6;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    background: rgba(255,255,255,0.06); border-radius: 8px;
+    padding: 8px 10px; display: none; white-space: pre-wrap; word-break: break-word;
+  }
+  #message.err #msgTitle { color: #ff9db4; }
+  .spinner {
+    width: 42px; height: 42px; border-radius: 50%;
+    border: 4px solid rgba(255,150,200,0.25); border-top-color: var(--pink);
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #hint {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    z-index: 5; font-size: 13px; padding: 9px 16px; opacity: 0.92;
+    white-space: nowrap; max-width: 94vw; overflow: hidden; text-overflow: ellipsis;
+  }
+  .hidden { display: none !important; }
+  footer {
+    position: fixed; bottom: 4px; right: 8px; z-index: 4;
+    font-size: 10px; opacity: 0.45;
+  }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <video id="video" playsinline muted></video>
+    <div id="demoFace" class="hidden">🐱</div>
+    <canvas id="fx"></canvas>
+  </div>
+
+  <div id="hud" class="hidden">
+    <div class="panel" id="title">
+      🐱 Purrrfect Party
+      <small>smile → glowing &lt;3 rains from the sky</small>
+    </div>
+    <div class="panel chip"><span class="dot" id="camDot"></span><span id="camText">camera: starting…</span></div>
+    <div class="panel chip"><span class="dot" id="faceDot"></span><span id="faceText">face: looking…</span></div>
+    <div class="panel" id="meterWrap">
+      <div id="meterLabel"><span>😸 smile power</span><span id="smilePct">0%</span></div>
+      <div id="meter"><div id="meterFill"></div></div>
+    </div>
+    <div class="panel chip" id="rainBadge">💖 HEART RAIN 💖</div>
+    <button id="testBtn">🌧 test the rain</button>
+  </div>
+
+  <div id="hint" class="panel hidden"></div>
+
+  <div id="message">
+    <div class="spinner" id="msgSpinner"></div>
+    <h1 id="msgTitle">Loading the face magic…</h1>
+    <p id="msgText">Warming up…</p>
+    <div id="msgDetail"></div>
+    <div id="msgBtn"></div>
+  </div>
+
+  <footer>face tracking: face-api.js (TensorFlow.js) · 68-point facial landmarks</footer>
+
+  <!-- Self-contained face tracking library (bundles TensorFlow.js, runs on WebGL — no WASM needed) -->
+  <script src="./vendor/face-api.min.js" onerror="window.__faceapiLoadFailed = true"></script>
+
+<script type="module">
+/* ============================================================
+   Purrrfect Party — cat ears + smile-triggered <3 heart rain
+   Tracking: face-api.js (TensorFlow.js, 68-point landmarks)
+   Everything is bundled locally in ./vendor/ (no CDNs, no WASM,
+   so it works even in restricted preview environments).
+   ============================================================ */
+
+const $ = (id) => document.getElementById(id);
+const VIDEO = $('video'), CANVAS = $('fx'), CTX = CANVAS.getContext('2d');
+const HUD = $('hud'), MESSAGE = $('message'), HINT = $('hint'), DETAIL = $('msgDetail');
+
+const MODELS_URI = './vendor/models';
+const SMILE_ON = 0.35, SMILE_OFF = 0.25, MAX_HEARTS = 240;
+const PALETTE = ['#ff4d6d', '#ff9e00', '#ffd60a', '#70e000', '#00e5ff', '#7c4dff', '#ff5ce1', '#4dffd2'];
+
+let lastLandmarks = null;         // 68 points {x,y} in video pixel space (unmirrored)
+let lastDetectedSmile = 0;        // smile score from latest detection (0..1)
+let detecting = false;
+let lastVideoTime = -1, lastDetectedVideoTime = -1;
+let lastTs = 0, spawnAccum = 0, hudTick = 0;
+let demoMode = false, demoSmile = false, forceRainUntil = 0, booted = false;
+const state = { smile: 0, smiling: false, faceFound: false };
+const hearts = [];
+
+/* ---------------- message box ---------------- */
+function showMsg(title, text, opts = {}) {
+  $('msgTitle').textContent = title;
+  $('msgText').innerHTML = text;
+  $('msgSpinner').style.display = opts.spin ? 'block' : 'none';
+  MESSAGE.classList.toggle('err', !!opts.error);
+  DETAIL.style.display = opts.detail ? 'block' : 'none';
+  if (opts.detail) DETAIL.textContent = String(opts.detail).slice(0, 600);
+  $('msgBtn').innerHTML = '';
+}
+function addBtn(label, onClick) {
+  const b = document.createElement('button');
+  b.textContent = label;
+  b.onclick = onClick;
+  $('msgBtn').appendChild(b);
+}
+function hideMsg() { MESSAGE.classList.add('hidden'); }
+
+function sizeCanvas() {
+  CANVAS.width = VIDEO.videoWidth || 1280;
+  CANVAS.height = VIDEO.videoHeight || 720;
+}
+
+/* ---------------- geometry helpers ---------------- */
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
+
+/* Smile score from 68 landmarks (calibrated on test set:
+   smile 0.79-1.00, neutral/sad ~0.0-0.10, surprised 0.15) */
+function smileScore(lms) {
+  const jawW = dist(lms[0], lms[16]);
+  const mouthW = dist(lms[48], lms[54]);
+  const upperY = lms[51].y, lowerY = lms[57].y;
+  const mouthH = Math.abs(upperY - lowerY);
+  const mouthCenterY = (upperY + lowerY) / 2;
+  const cornerY = (lms[48].y + lms[54].y) / 2;
+  const liftN = (mouthCenterY - cornerY) / jawW;   // corners above center = smile
+  const widthN = mouthW / jawW;                    // mouth widens when smiling
+  const hN = mouthH / jawW;                        // mouth openness
+  const widthScore = clamp01((widthN - 0.325) / 0.1);
+  const liftScore = clamp01((liftN + 0.005) / 0.045);
+  let score = 0.75 * widthScore + 0.25 * liftScore;
+  if (hN > 0.15 && widthN < 0.36) score *= 0.35;   // "O" mouth (surprise) penalty
+  return score;
+}
+
+/* Ear anchors: just above & outside the jaw's outer points */
+function earAnchors(lms) {
+  const jawW = dist(lms[0], lms[16]);
+  const c = {
+    x: lms.reduce((s, p) => s + p.x, 0) / 68,
+    y: lms.reduce((s, p) => s + p.y, 0) / 68,
+  };
+  const out = (pt) => {
+    const dx = pt.x - c.x, dy = pt.y - c.y;
+    const L = Math.hypot(dx, dy) || 1;
+    return { x: pt.x + (dx / L) * jawW * 0.1, y: pt.y + (dy / L) * jawW * 0.1 - jawW * 0.22 };
+  };
+  return [out(lms[0]), out(lms[16])];
+}
+
+/* ---------------- step 1: backend + models ---------------- */
+async function loadTracker() {
+  showMsg('Loading face magic… (step 1/3)', 'Warming up the neural network (WebGL)…', { spin: true });
+  const tf = faceapi.tf;
+  let webgl = false;
+  try {
+    webgl = await tf.setBackend('webgl').then(() => tf.ready()).then(() => true).catch(() => false);
+  } catch (e) { webgl = false; }
+  if (!webgl) {
+    try { await tf.setBackend('cpu'); await tf.ready(); } catch (e) { /* keep whatever backend */ }
+  }
+  console.log('tf backend:', tf.getBackend());
+
+  showMsg('Loading face magic… (step 2/3)', 'Loading the face models (local, ~0.6 MB)…', { spin: true });
+  await faceapi.nets.tinyFaceDetector.loadFromUri(MODELS_URI);
+  await faceapi.nets.faceLandmark68Net.loadFromUri(MODELS_URI);
+}
+
+/* ---------------- step 3: camera ---------------- */
+async function startCamera() {
+  showMsg('Loading face magic… (step 3/3)', 'Starting your camera… allow access when asked 😉', { spin: true });
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+    audio: false,
+  });
+  VIDEO.srcObject = stream;
+  await VIDEO.play();
+  sizeCanvas();
+}
+
+function start() {
+  booted = true;
+  HUD.classList.remove('hidden');
+  HINT.innerHTML = '😸 Smile big — the more you smile, the faster the glowing &lt;3 falls!';
+  HINT.classList.remove('hidden');
+  $('camDot').classList.add(demoMode ? 'warn' : 'on');
+  lastTs = performance.now();
+  requestAnimationFrame(loop);
+}
+
+function offerDemo(reason) {
+  showMsg('No camera? No problem 🐾', reason, { error: true });
+  addBtn('Start demo mode (hearts only)', () => {
+    hideMsg();
+    demoMode = true;
+    VIDEO.classList.add('hidden');
+    $('demoFace').classList.remove('hidden');
+    $('camDot').classList.add('warn');
+    $('camText').textContent = 'camera: off';
+    $('faceText').textContent = 'demo mode';
+    HINT.textContent = 'Press the smile button to make the glowing <3 rain!';
+    const b = $('testBtn');
+    b.textContent = '😊 smile!';
+    b.onclick = () => {
+      demoSmile = !demoSmile;
+      b.textContent = demoSmile ? '😐 stop smiling' : '😊 smile!';
+    };
+    start();
+  });
+}
+
+/* ---------------- detection (async, busy-guarded) ---------------- */
+function maybeDetect() {
+  if (detecting || demoMode) return;
+  if (VIDEO.readyState < 2) return;
+  if (VIDEO.currentTime === lastDetectedVideoTime) return; // no new video frame yet
+  lastDetectedVideoTime = VIDEO.currentTime;
+  detecting = true;
+  faceapi
+    .detectAllFaces(VIDEO, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 }))
+    .withFaceLandmarks()
+    .then((results) => {
+      if (!results.length) {
+        lastLandmarks = null;
+        state.faceFound = false;
+        lastDetectedSmile = 0;
+        return;
+      }
+      let best = results[0];
+      for (const r of results) {
+        const a = r.detection.box, b = best.detection.box;
+        if (a.width * a.height > b.width * b.height) best = r;
+      }
+      lastLandmarks = best.landmarks.positions.map((p) => ({ x: p.x, y: p.y }));
+      state.faceFound = true;
+      lastDetectedSmile = smileScore(lastLandmarks);
+    })
+    .catch((err) => console.warn('detection failed:', err))
+    .finally(() => { detecting = false; });
+}
+
+/* ---------------- main loop ---------------- */
+function loop(ts) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.05, (ts - lastTs) / 1000) || 0.016;
+  lastTs = ts;
+
+  maybeDetect();
+  updateSmile();
+  updateHearts(dt);
+  render(ts);
+  updateHUD();
+}
+
+/* ---------------- smile state (smoothed + hysteresis) ---------------- */
+function updateSmile() {
+  const raw = demoMode ? (demoSmile ? 0.85 : 0) : lastDetectedSmile;
+  state.smile += (raw - state.smile) * 0.3;
+  const was = state.smiling;
+  state.smiling = state.smiling ? state.smile > SMILE_OFF : state.smile > SMILE_ON;
+  if (!was && state.smiling) for (let i = 0; i < 12; i++) hearts.push(makeHeart()); // start burst
+}
+
+/* ---------------- <3 heart particles ---------------- */
+function makeHeart() {
+  const size = 16 + Math.random() * 34;
+  return {
+    baseX: Math.random() * CANVAS.width,
+    x: 0,
+    y: -60 - Math.random() * 120,
+    vy: 1.4 + Math.random() * 2.4,
+    amp: 12 + Math.random() * 26,
+    phase: Math.random() * Math.PI * 2,
+    swaySpeed: 1.2 + Math.random() * 1.6,
+    rot: (Math.random() - 0.5) * 0.5,
+    vr: (Math.random() - 0.5) * 0.03,
+    t: Math.random() * 10,
+    size,
+    color: PALETTE[(Math.random() * PALETTE.length) | 0],
+  };
+}
+
+function updateHearts(dt) {
+  const raining = state.smiling || performance.now() < forceRainUntil;
+  if (raining) {
+    spawnAccum += dt * (16 + state.smile * 30);
+    while (spawnAccum >= 1 && hearts.length < MAX_HEARTS) { spawnAccum -= 1; hearts.push(makeHeart()); }
+    if (spawnAccum > 4) spawnAccum = 4;
+  } else {
+    spawnAccum = 0;
+  }
+  const scale = CANVAS.height / 720;
+  for (let i = hearts.length - 1; i >= 0; i--) {
+    const p = hearts[i];
+    p.t += dt;
+    p.y += p.vy * scale * dt * 60;
+    p.x = p.baseX + Math.sin(p.t * p.swaySpeed + p.phase) * p.amp * scale;
+    p.rot += p.vr * dt * 60;
+    if (p.y > CANVAS.height + 80) hearts.splice(i, 1);
+  }
+}
+
+function drawHearts() {
+  CTX.save();
+  CTX.textAlign = 'center';
+  CTX.textBaseline = 'middle';
+  for (const p of hearts) {
+    CTX.save();
+    CTX.translate(p.x, p.y);
+    CTX.rotate(p.rot);
+    CTX.font = `800 ${p.size}px "Trebuchet MS", "Segoe UI", sans-serif`;
+    CTX.shadowColor = p.color;
+    CTX.shadowBlur = p.size * 0.9;
+    CTX.fillStyle = p.color;
+    CTX.fillText('<3', 0, 0);
+    CTX.shadowBlur = p.size * 0.3;
+    CTX.fillStyle = 'rgba(255,255,255,0.92)';
+    CTX.fillText('<3', 0, 0);
+    CTX.restore();
+  }
+  CTX.restore();
+}
+
+/* ---------------- cat ears / whiskers / pink nose ---------------- */
+function drawCat(lm, ts) {
+  const w = CANVAS.width;
+  const disp = lm.map((p) => ({ x: w - p.x, y: p.y })); // mirror to match selfie view
+  const noseTip = disp[30];
+  const noseW = Math.max(6, dist(disp[33], disp[35]));
+  const jawW = Math.max(30, dist(disp[0], disp[16]));
+  let R = disp[19], L = disp[24]; // brow centers
+  if (L.x < R.x) { const t = R; R = L; L = t; }
+  const roll = Math.atan2(L.y - R.y, (L.x - R.x) || 1); // head tilt
+
+  const [a1, a2] = earAnchors(disp);
+  const earLeft = a1.x <= a2.x ? a1 : a2;
+  const earRight = a1.x <= a2.x ? a2 : a1;
+  drawEar(earLeft.x, earLeft.y, jawW * 0.17, roll - 0.2, ts);
+  drawEar(earRight.x, earRight.y, jawW * 0.17, roll + 0.2, ts);
+  drawWhiskers(noseTip, noseW, ts);
+  drawNose(noseTip, noseW, roll);
+}
+
+function drawEar(cx, cy, size, angle, ts) {
+  const s = size;
+  const wiggle = Math.sin(ts / 800 + cx) * 0.04;
+  CTX.save();
+  CTX.translate(cx, cy);
+  CTX.rotate(angle + wiggle);
+  CTX.beginPath();
+  CTX.moveTo(-s, 0);
+  CTX.quadraticCurveTo(-s * 0.85, -s * 0.95, -s * 0.05, -s * 1.55);
+  CTX.quadraticCurveTo(s * 0.8, -s * 0.95, s, 0);
+  CTX.closePath();
+  const g = CTX.createLinearGradient(0, 0, 0, -s * 1.55);
+  g.addColorStop(0, '#6d5348');
+  g.addColorStop(1, '#a97c62');
+  CTX.fillStyle = g;
+  CTX.shadowColor = 'rgba(0,0,0,0.35)';
+  CTX.shadowBlur = s * 0.3;
+  CTX.fill();
+  CTX.shadowBlur = 0;
+  CTX.beginPath();
+  CTX.moveTo(-s * 0.5, -s * 0.1);
+  CTX.quadraticCurveTo(-s * 0.42, -s * 0.62, -s * 0.02, -s * 1.0);
+  CTX.quadraticCurveTo(s * 0.36, -s * 0.62, s * 0.52, -s * 0.1);
+  CTX.closePath();
+  CTX.fillStyle = '#ff9ec7';
+  CTX.fill();
+  CTX.restore();
+}
+
+const WHISKER_ANGLES = [-0.32, 0, 0.32];
+function drawWhiskers(nose, nw, ts) {
+  CTX.lineCap = 'round';
+  CTX.strokeStyle = 'rgba(255,255,255,0.88)';
+  CTX.lineWidth = Math.max(2, nw * 0.075);
+  for (const side of [-1, 1]) {
+    const ax = nose.x + side * nw * 1.15;
+    const ay = nose.y + nw * 0.55;
+    WHISKER_ANGLES.forEach((a, i) => {
+      const ang = side === 1 ? a + 0.08 : Math.PI - a - 0.08;
+      const len = nw * (1.7 + (i === 1 ? 0.35 : 0));
+      const tw = Math.sin(ts / 260 + i * 1.7 + (side > 0 ? 2 : 0)) * nw * 0.03;
+      const ex = ax + Math.cos(ang) * len;
+      const ey = ay + Math.sin(ang) * len + tw;
+      CTX.beginPath();
+      CTX.moveTo(ax, ay);
+      CTX.quadraticCurveTo((ax + ex) / 2, (ay + ey) / 2 + len * 0.08, ex, ey);
+      CTX.stroke();
+    });
+  }
+}
+
+function drawNose(nose, nw, roll) {
+  const s = nw * 0.42;
+  CTX.save();
+  CTX.translate(nose.x, nose.y + nw * 0.5);
+  CTX.rotate(roll * 0.6);
+  CTX.beginPath();
+  CTX.moveTo(-s, -s * 0.3);
+  CTX.quadraticCurveTo(0, -s * 0.95, s, -s * 0.3);
+  CTX.quadraticCurveTo(s * 0.65, s * 0.5, 0, s * 0.85);
+  CTX.quadraticCurveTo(-s * 0.65, s * 0.5, -s, -s * 0.3);
+  CTX.closePath();
+  const g = CTX.createLinearGradient(0, -s, 0, s);
+  g.addColorStop(0, '#ff9cc0');
+  g.addColorStop(1, '#f0468b');
+  CTX.fillStyle = g;
+  CTX.shadowColor = 'rgba(240,70,139,0.55)';
+  CTX.shadowBlur = s * 0.9;
+  CTX.fill();
+  CTX.shadowBlur = 0;
+  CTX.beginPath();
+  CTX.ellipse(-s * 0.32, -s * 0.38, s * 0.2, s * 0.11, -0.55, 0, Math.PI * 2);
+  CTX.fillStyle = 'rgba(255,255,255,0.75)';
+  CTX.fill();
+  CTX.restore();
+}
+
+/* ---------------- render & HUD ---------------- */
+function render(ts) {
+  const w = CANVAS.width, h = CANVAS.height;
+  CTX.clearRect(0, 0, w, h);
+  if (lastLandmarks) drawCat(lastLandmarks, ts);
+  drawHearts(); // hearts in normal screen space (so "<3" stays readable)
+}
+
+function updateHUD() {
+  if (++hudTick % 5 !== 0) return;
+  const pct = Math.round(Math.min(1, state.smile / SMILE_ON) * 100);
+  $('meterFill').style.width = pct + '%';
+  $('smilePct').textContent = pct + '%';
+  const fd = $('faceDot'), ft = $('faceText');
+  if (demoMode) { fd.classList.add('on'); ft.textContent = 'demo mode'; }
+  else if (state.faceFound) { fd.classList.add('on'); fd.classList.remove('warn'); ft.textContent = 'face: found'; }
+  else { fd.classList.remove('on'); fd.classList.add('warn'); ft.textContent = 'face: looking…'; }
+  $('rainBadge').style.display = (state.smiling || performance.now() < forceRainUntil) ? 'inline-flex' : 'none';
+}
+
+/* ---------------- go! ---------------- */
+$('testBtn').addEventListener('click', () => {
+  forceRainUntil = performance.now() + 3000;
+  for (let i = 0; i < 8; i++) hearts.push(makeHeart());
+});
+window.addEventListener('resize', sizeCanvas);
+
+async function main() {
+  try {
+    await loadTracker();
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error('no-secure-context');
+    await startCamera();
+    hideMsg();
+    start();
+  } catch (err) {
+    console.error(err);
+    if (err && err.name === 'NotAllowedError') {
+      offerDemo('Camera permission was denied. You can still play in demo mode — no cat ears, but the heart rain still works!');
+    } else if (err && err.message === 'no-secure-context') {
+      offerDemo('Browsers only allow the camera on HTTPS or localhost pages. Use the live preview link, or serve this folder with <b>python3 -m http.server</b> and open it on localhost. Demo mode still works either way.');
+    } else if (landmarkerOrNetsLoaded()) {
+      offerDemo((err?.message || 'Camera could not be started.') + ' You can still play in demo mode.');
+    } else {
+      // tracking itself failed to load
+      showMsg('😿 Face tracking failed to load',
+        'The local tracker files (in <b>vendor/</b>) could not be loaded. If you opened this by double-clicking the file, browsers block local scripts — use the <b>live preview link</b> instead, or serve the folder over <b>localhost</b>.',
+        { error: true, detail: err?.message || err });
+      addBtn('🔁 Retry', main);
+    }
+  }
+}
+
+function landmarkerOrNetsLoaded() {
+  try { return !!faceapi.nets.tinyFaceDetector.params; } catch (e) { return false; }
+}
+
+/* Watchdog: never spin forever again */
+setTimeout(() => {
+  if (!booted) {
+    showMsg('⏳ Still working…',
+      'Loading is taking longer than usual. Your browser may be blocking local files or the network is slow. If this page was opened by double-clicking the file, use the <b>live preview link</b> (or serve it on localhost) and try again.',
+      { spin: true });
+    addBtn('🔁 Retry', main);
+  }
+}, 45000);
+
+if (window.__faceapiLoadFailed || typeof faceapi === 'undefined') {
+  showMsg('😿 Couldn’t load the face-tracking library',
+    'The local library file <b>vendor/face-api.min.js</b> could not be loaded. This happens if you opened the HTML file directly (double-click) — browsers block it there. Please use the <b>live preview link</b>, or serve this folder (e.g. <b>python3 -m http.server</b>) and open the localhost address.',
+    { error: true });
+  addBtn('🔁 Retry', () => location.reload());
+} else {
+  main();
+}
+</script>
+</body>
+</html>
